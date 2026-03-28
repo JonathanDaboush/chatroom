@@ -2,3 +2,7 @@ fastapi
 uvicorn
 sqlalchemy[asyncio]
 asyncpg
+sqlalchemy
+psycopg2
+asyncio
+alembic
