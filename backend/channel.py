@@ -13,23 +13,30 @@ from fastapi import WebSocket, WebSocketDisconnect, APIRouter
 from typing import Dict, Any, Optional
 from backend.services import RoomService, CallService
 from backend.repositories import RoomRepository, RoomMemberRepository, UserRepository, CallRepository, CallParticipantRepository
-from backend.database import SessionLocal
-from backend.classes import Room, RoomMember, Call
+from backend.database import AsyncSessionLocal
+
 
 
 router: APIRouter = APIRouter()
 
 
 # Dependency injection: instantiate repositories/services with DB session
-db = SessionLocal()
-room_repo = RoomRepository(db)
-room_member_repo = RoomMemberRepository(db)
-user_repo = UserRepository(db)
-call_repo = CallRepository(db)
-call_participant_repo = CallParticipantRepository(db)
 
-room_service = RoomService(room_repo=room_repo, room_member_repo=room_member_repo, user_repo=user_repo)
-call_service = CallService(call_repo=call_repo, call_participant_repo=call_participant_repo, room_member_repo=room_member_repo)
+
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+async def get_services():
+    async with AsyncSessionLocal() as db:  # type: ignore
+        db: AsyncSession  # type hint for Pylance
+        room_repo = RoomRepository(db)
+        room_member_repo = RoomMemberRepository(db)
+        user_repo = UserRepository(db)
+        call_repo = CallRepository(db)
+        call_participant_repo = CallParticipantRepository(db)
+        room_service = RoomService(room_repo=room_repo, room_member_repo=room_member_repo, user_repo=user_repo)
+        call_service = CallService(call_repo=call_repo, call_participant_repo=call_participant_repo, room_member_repo=room_member_repo)
+        return room_service, call_service
 
 class ChannelManager:
     """
@@ -40,7 +47,6 @@ class ChannelManager:
     def __init__(self, room_service: RoomService, call_service: CallService):
         self.room_service = room_service
         self.call_service = call_service
-        # room_link -> {user_id: WebSocket}
         self.connections: Dict[str, Dict[int, WebSocket]] = {}
 
     async def connect(self, room_link: str, websocket: WebSocket, user_id: int) -> None:
@@ -48,21 +54,23 @@ class ChannelManager:
         Accept WebSocket connection and register user in room channel.
         Validates room and membership.
         """
-        # Accept WebSocket
         await websocket.accept()
 
-        # Verify room exists
-        # Find the room by link
-        room = self.room_service.room_repo.db.query(Room).filter(Room.room_link == room_link).first()
+        # Use async repo/service methods
+        room = await self.room_service.room_repo.get_by_id_by_link(room_link)
         if not room:
             await websocket.close(code=4004)
             return
-        # Check if user is a permitted member
-        member = self.room_service.room_member_repo.db.query(RoomMember).filter(RoomMember.room_id == room.room_id, RoomMember.user_id == user_id).first()
+        room_id_val = getattr(room, "room_id", None)
+        if room_id_val is not None and hasattr(room_id_val, 'value'):
+            room_id_val = room_id_val.value
+        if not isinstance(room_id_val, int):
+            await websocket.close(code=4004)
+            return
+        member = await self.room_service.room_member_repo.get_member(room_id_val, user_id)
         if not member or not getattr(member, "is_permitted", False):
             await websocket.close(code=4003)
             return
-        # Register connection
         if room_link not in self.connections:
             self.connections[room_link] = {}
         self.connections[room_link][user_id] = websocket
@@ -72,14 +80,13 @@ class ChannelManager:
         }, exclude=user_id)
 
         # Track call participation (optional)
-        # Find the latest call for this room (if any)
-        latest_call = self.call_service.call_repo.db.query(Call).filter(Call.room_id == room.room_id).order_by(Call.started_at.desc()).first()
+        latest_call = await self.call_service.call_repo.get_latest_call_by_room(room_id_val)
         if latest_call:
             call_id_val = getattr(latest_call, 'call_id', None)
             if call_id_val is not None and hasattr(call_id_val, 'value'):
                 call_id_val = call_id_val.value
             if isinstance(call_id_val, int):
-                self.call_service.join_call(call_id_val, user_id)
+                await self.call_service.join_call(call_id_val, user_id)
 
         try:
             while True:
@@ -135,25 +142,35 @@ class ChannelManager:
                 "user_id": user_id
             })
             # Remove from call participation
-            # Find the room object
-            db_room = self.room_service.room_repo.db.query(Room).filter(Room.room_link == room_link).first()
-            if db_room:
-                for call in self.call_service.call_repo.db.query(Call).filter(Call.room_id == db_room.room_id).all():
-                    call_id_val = getattr(call, 'call_id', None)
+            # Find the room object using async repo method
+            db_room = await self.room_service.room_repo.get_by_id_by_link(room_link)
+            room_id_val = getattr(db_room, "room_id", None) if db_room else None
+            if room_id_val is not None and hasattr(room_id_val, 'value'):
+                room_id_val = room_id_val.value
+            if isinstance(room_id_val, int):
+                latest_call = await self.call_service.call_repo.get_latest_call_by_room(room_id_val)
+                if latest_call:
+                    call_id_val = getattr(latest_call, 'call_id', None)
                     if call_id_val is not None and hasattr(call_id_val, 'value'):
                         call_id_val = call_id_val.value
                     if isinstance(call_id_val, int):
-                        self.call_service.leave_call(call_id_val, user_id)
+                        await self.call_service.leave_call(call_id_val, user_id)
 
 
-# Instantiate manager
-channel_manager = ChannelManager(room_service, call_service)
+# Instantiate manager with async services
 
-# WebSocket endpoint
+
+# ChannelManager is initialized at startup (see below)
+channel_manager: Optional[ChannelManager] = None
+
+
+# NOTE: FastAPI's @router.on_event("startup") is deprecated. Use lifespan event handlers in your main app.
+# For now, ensure channel_manager is initialized before handling requests.
+
+
 @router.websocket("/ws/room/{room_link}")
 async def room_channel(websocket: WebSocket, room_link: str, user_id: int):
-    """
-    WebSocket entrypoint for room channel.
-    Each user connects with their user_id and room_link.
-    """
+    if channel_manager is None:
+        await websocket.close(code=1011)
+        return
     await channel_manager.connect(room_link, websocket, user_id)

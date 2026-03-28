@@ -1,288 +1,343 @@
-from backend.database import SessionLocal
-from backend.classes import User, Room, RoomMember, Message, Call, CallParticipant
- 
-from sqlalchemy import or_
-db = SessionLocal()
 
-from sqlalchemy.orm import Session
+from backend.classes import User, Room, RoomMember, Message, Call, CallParticipant
+from sqlalchemy import or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 class UserRepository:
-    def __init__(self, db: Session):
-        self.db: Session = db
+    def __init__(self, db: AsyncSession):
+        self.db: AsyncSession = db
 
-    def get_by_id(self, user_id: int) -> User | None:  # type: ignore
-        return self.db.query(User).filter(User.user_id == user_id).first()  # type: ignore
+    async def get_by_id(self, user_id: int) -> User | None:
+        result = await self.db.execute(select(User).where(User.user_id == user_id))
+        return result.scalars().first()
 
-    def get_by_username(self, username: str) -> User | None:  # type: ignore
-        return self.db.query(User).filter(User.username == username).first()  # type: ignore
+    async def get_by_username(self, username: str) -> User | None:
+        result = await self.db.execute(select(User).where(User.username == username))
+        return result.scalars().first()
 
-    def get_all(self) -> list[User]:  # type: ignore
-        return self.db.query(User).all()  # type: ignore
+    async def get_all(self) -> list[User]:
+        result = await self.db.execute(select(User))
+        return list(result.scalars().all())
 
-    def create(self, username: str, email: str, password_hash: str) -> User:  # type: ignore
+    async def create(self, username: str, email: str, password_hash: str) -> User:
         new_user = User(username=username, email=email, password_hash=password_hash)
-        self.db.add(new_user)  # type: ignore
-        self.db.commit()  # type: ignore
-        self.db.refresh(new_user)  # type: ignore
+        self.db.add(new_user)
+        await self.db.commit()
+        await self.db.refresh(new_user)
         return new_user
 
-    def update_status(self, user_id: int, status: str) -> User | None:  # type: ignore
-        user = self.get_by_id(user_id)
+    async def update_status(self, user_id: int, status: str) -> User | None:
+        user = await self.get_by_id(user_id)
         if user is not None:
-            # Assign directly to SQLAlchemy field
-            user.status = status  # type: ignore[attr-defined]
+            setattr(user, "status", status)
             try:
-                self.db.commit()  # type: ignore
-                self.db.refresh(user)  # type: ignore
+                await self.db.commit()
+                await self.db.refresh(user)
             except Exception:
-                self.db.rollback()  # type: ignore
+                await self.db.rollback()
                 return None
         return user
 
-    def soft_delete(self, user_id: int) -> User | None:  # type: ignore
-        user = self.get_by_id(user_id)
+    async def soft_delete(self, user_id: int) -> User | None:
+        user = await self.get_by_id(user_id)
         if user:
-            user.status = "inactive"  # type: ignore[attr-defined]
+            setattr(user, "status", "inactive")
             try:
-                self.db.commit()  # type: ignore
-                self.db.refresh(user)  # type: ignore
+                await self.db.commit()
+                await self.db.refresh(user)
             except Exception:
-                self.db.rollback()  # type: ignore
+                await self.db.rollback()
                 return None
         return user
-    def search(self, query: str) -> list[User]:  # type: ignore
-        return self.db.query(User).filter(
-            or_(User.username.ilike(f"%{query}%"), User.email.ilike(f"%{query}%"))
-        ).all()  # type: ignore
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+    async def search(self, query: str) -> list[User]:
+        result = await self.db.execute(
+            select(User).where(
+                or_(User.username.ilike(f"%{query}%"), User.email.ilike(f"%{query}%"))
+            )
+        )
+        return list(result.scalars().all())
+
 
 class RoomRepository:
-    def __init__(self, db: 'Session'):
-        self.db: 'Session' = db
+    def __init__(self, db: AsyncSession):
+        self.db: AsyncSession = db
 
-    def get_by_id(self, room_id: int) -> Room | None:  # type: ignore
-        return self.db.query(Room).filter(Room.room_id == room_id).first()  # type: ignore
+    async def get_by_id(self, room_id: int) -> Room | None:
+        result = await self.db.execute(select(Room).where(Room.room_id == room_id))
+        return result.scalars().first()
 
-    def get_all(self) -> list[Room]:  # type: ignore
-        return self.db.query(Room).all()  # type: ignore
+    async def get_all(self) -> list[Room]:
+        result = await self.db.execute(select(Room))
+        return list(result.scalars().all())
 
-    def create(self, room_name: str, leader_id: int, room_link: str = None) -> Room:  # type: ignore
+    async def create(self, room_name: str, leader_id: int, room_link: str | None = None) -> Room:
         new_room = Room(room_name=room_name, leader_id=leader_id, room_link=room_link)
-        self.db.add(new_room)  # type: ignore
-        self.db.commit()  # type: ignore
-        self.db.refresh(new_room)  # type: ignore
+        self.db.add(new_room)
+        await self.db.commit()
+        await self.db.refresh(new_room)
         return new_room
 
-    def delete(self, room_id: int) -> Room | None:  # type: ignore
-        room = self.get_by_id(room_id)
+    async def delete(self, room_id: int) -> Room | None:
+        room = await self.get_by_id(room_id)
         if room:
-            self.db.delete(room)  # type: ignore
-            self.db.commit()  # type: ignore
+            await self.db.delete(room)
+            await self.db.commit()
         return room
-class RoomMemberRepository:
-    def __init__(self, db: Session):
-        self.db = db
 
-    def invite_member(self, room_id: int, user_id: int) -> RoomMember | None:  # type: ignore
-        member = self.db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == user_id).first()  # type: ignore
+    async def get_by_id_by_link(self, room_link: str) -> Room | None:
+        result = await self.db.execute(select(Room).where(Room.room_link == room_link))
+        return result.scalars().first()
+class RoomMemberRepository:
+    def __init__(self, db: AsyncSession):
+        self.db: AsyncSession = db
+
+    async def get_member(self, room_id: int, user_id: int) -> RoomMember | None:
+        result = await self.db.execute(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id))
+        return result.scalars().first()
+
+    async def invite_member(self, room_id: int, user_id: int) -> RoomMember | None:
+        result = await self.db.execute(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id))
+        member = result.scalars().first()
         if not member:
             member = RoomMember(room_id=room_id, user_id=user_id, status="pending", is_permitted=False)
-            self.db.add(member)  # type: ignore
+            self.db.add(member)
         else:
-            member.status = "pending"  # type: ignore[attr-defined]
-        self.db.commit()  # type: ignore
-        self.db.refresh(member)  # type: ignore
+            setattr(member, "status", "pending")
+        await self.db.commit()
+        await self.db.refresh(member)
         return member
 
-    def set_invite_response(self, room_id: int, user_id: int, accept: bool) -> RoomMember | None:  # type: ignore
-        member = self.db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == user_id).first()  # type: ignore
+    async def set_invite_response(self, room_id: int, user_id: int, accept: bool) -> RoomMember | None:
+        result = await self.db.execute(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id))
+        member = result.scalars().first()
         if member:
             if accept:
-                member.status = "accepted"  # type: ignore[attr-defined]
-                member.is_permitted = True  # type: ignore[attr-defined]
+                setattr(member, "status", "accepted")
+                setattr(member, "is_permitted", True)
             else:
-                member.status = "rejected"  # type: ignore[attr-defined]
-                member.is_permitted = False  # type: ignore[attr-defined]
-            self.db.commit()  # type: ignore
-            self.db.refresh(member)  # type: ignore
+                setattr(member, "status", "rejected")
+                setattr(member, "is_permitted", False)
+            await self.db.commit()
+            await self.db.refresh(member)
         return member
 
-    def ban_member(self, room_id: int, user_id: int) -> RoomMember | None:  # type: ignore
-        member = self.db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == user_id).first()  # type: ignore
+    async def ban_member(self, room_id: int, user_id: int) -> RoomMember | None:
+        result = await self.db.execute(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id))
+        member = result.scalars().first()
         if member:
-            member.is_banned = True  # type: ignore[attr-defined]
-            member.is_permitted = False  # type: ignore[attr-defined]
-            member.status = "left"  # type: ignore[attr-defined]
-            self.db.commit()  # type: ignore
-            self.db.refresh(member)  # type: ignore
+            setattr(member, "is_banned", True)
+            setattr(member, "is_permitted", False)
+            setattr(member, "status", "left")
+            await self.db.commit()
+            await self.db.refresh(member)
         return member
 
-    def unban_member(self, room_id: int, user_id: int) -> RoomMember | None:  # type: ignore
-        member = self.db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == user_id).first()  # type: ignore
+    async def unban_member(self, room_id: int, user_id: int) -> RoomMember | None:
+        result = await self.db.execute(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id))
+        member = result.scalars().first()
         if member:
-            member.is_banned = False  # type: ignore[attr-defined]
-            self.db.commit()  # type: ignore
-            self.db.refresh(member)  # type: ignore
+            setattr(member, "is_banned", False)
+            await self.db.commit()
+            await self.db.refresh(member)
         return member
 
-    def uninvite_member(self, room_id: int, user_id: int) -> RoomMember | None:  # type: ignore
-        member = self.db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == user_id).first()  # type: ignore
+    async def uninvite_member(self, room_id: int, user_id: int) -> RoomMember | None:
+        result = await self.db.execute(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id))
+        member = result.scalars().first()
         if member:
-            member.is_permitted = False  # type: ignore[attr-defined]
-            member.status = "pending"  # type: ignore[attr-defined]
-            self.db.commit()  # type: ignore
-            self.db.refresh(member)  # type: ignore
+            setattr(member, "is_permitted", False)
+            setattr(member, "status", "pending")
+            await self.db.commit()
+            await self.db.refresh(member)
         return member
 
-    def add_member(self, room_id: int, user_id: int, role: str = "member") -> RoomMember:  # type: ignore
-        # Check if already exists
-        member = self.db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == user_id).first()  # type: ignore
+    async def add_member(self, room_id: int, user_id: int, role: str = "member") -> RoomMember:
+        result = await self.db.execute(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id))
+        member = result.scalars().first()
         if member:
-            if getattr(member, "is_permitted", False) and getattr(member, "status", None) in ["left", "rejected"]:  # type: ignore
-                member.status = "accepted"  # type: ignore[attr-defined]
-                self.db.commit()  # type: ignore
-                self.db.refresh(member)  # type: ignore
-                return member  # type: ignore
-            return member  # Already a member or not permitted  # type: ignore
+            if getattr(member, "is_permitted", False) and getattr(member, "status", None) in ["left", "rejected"]:
+                setattr(member, "status", "accepted")
+                await self.db.commit()
+                await self.db.refresh(member)
+                return member
+            return member
         new_member = RoomMember(room_id=room_id, user_id=user_id, role=role, status="pending", is_permitted=False)
-        self.db.add(new_member)  # type: ignore
-        self.db.commit()  # type: ignore
-        self.db.refresh(new_member)  # type: ignore
+        self.db.add(new_member)
+        await self.db.commit()
+        await self.db.refresh(new_member)
         return new_member
 
-    def remove_member(self, room_id: int, user_id: int) -> RoomMember | None:  # type: ignore
-        member = self.db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == user_id).first()  # type: ignore
-        if member and getattr(member, "status", None) == "active":  # type: ignore
-            member.status = "left"  # type: ignore[attr-defined]
-            self.db.commit()  # type: ignore
-            self.db.refresh(member)  # type: ignore
-        return member  # type: ignore
-    def permit_member(self, room_id: int, user_id: int) -> RoomMember | None:  # type: ignore
-        member = self.db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == user_id).first()  # type: ignore
+    async def remove_member(self, room_id: int, user_id: int) -> RoomMember | None:
+        result = await self.db.execute(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id))
+        member = result.scalars().first()
+        if member and getattr(member, "status", None) == "active":
+            setattr(member, "status", "left")
+            await self.db.commit()
+            await self.db.refresh(member)
+        return member
+    async def permit_member(self, room_id: int, user_id: int) -> RoomMember | None:
+        result = await self.db.execute(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id))
+        member = result.scalars().first()
         if member:
-            member.is_permitted = True  # type: ignore[attr-defined]
-            if getattr(member, "status", None) == "pending":  # type: ignore
-                member.status = "active"  # type: ignore[attr-defined]
-            self.db.commit()  # type: ignore
-            self.db.refresh(member)  # type: ignore
-        return member  # type: ignore
+            setattr(member, "is_permitted", True)
+            if getattr(member, "status", None) == "pending":
+                setattr(member, "status", "active")
+            await self.db.commit()
+            await self.db.refresh(member)
+        return member
 
-    def get_members(self, room_id: int) -> list[RoomMember]:  # type: ignore
-        members = self.db.query(RoomMember).filter(RoomMember.room_id == room_id).all()  # type: ignore
-        return members
+    async def get_members(self, room_id: int) -> list[RoomMember]:
+        result = await self.db.execute(select(RoomMember).where(RoomMember.room_id == room_id))
+        return list(result.scalars().all())
 
-    def get_user_rooms(self, user_id: int) -> list[RoomMember]:  # type: ignore
-        rooms = self.db.query(RoomMember).filter(RoomMember.user_id == user_id).all()  # type: ignore
-        return rooms
+    async def get_user_rooms(self, user_id: int) -> list[RoomMember]:
+        result = await self.db.execute(select(RoomMember).where(RoomMember.user_id == user_id))
+        return list(result.scalars().all())
 
-    def update_role(self, room_id: int, user_id: int, role: str) -> RoomMember | None:  # type: ignore
-        member = self.db.query(RoomMember).filter(RoomMember.room_id == room_id, RoomMember.user_id == user_id).first()  # type: ignore
+    async def update_role(self, room_id: int, user_id: int, role: str) -> RoomMember | None:
+        result = await self.db.execute(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id))
+        member = result.scalars().first()
         if member is not None:
-            member.role = role  # type: ignore[attr-defined]
+            setattr(member, "role", role)
             try:
-                self.db.commit()  # type: ignore
-                self.db.refresh(member)  # type: ignore
+                await self.db.commit()
+                await self.db.refresh(member)
             except Exception:
-                self.db.rollback()  # type: ignore
+                await self.db.rollback()
                 return None
         return member
 class MessageRepository:
-    def __init__(self, db: 'Session'):
-        self.db: 'Session' = db
+    def __init__(self, db: AsyncSession):
+        self.db: AsyncSession = db
 
-    def create(self, room_id: int, sender_id: int, content: str) -> Message:  # type: ignore
+    async def get_by_id(self, message_id: int) -> Message | None:
+        result = await self.db.execute(select(Message).where(Message.message_id == message_id))
+        return result.scalars().first()
+
+    async def create(self, room_id: int, sender_id: int, content: str) -> Message:
         new_message = Message(room_id=room_id, sender_id=sender_id, content=content)
-        self.db.add(new_message)  # type: ignore
-        self.db.commit()  # type: ignore
-        self.db.refresh(new_message)  # type: ignore
+        self.db.add(new_message)
+        await self.db.commit()
+        await self.db.refresh(new_message)
         return new_message
 
-    def get_by_room(self, room_id: int, limit: int = 50, offset: int = 0) -> list[Message]:  # type: ignore
-        messages = self.db.query(Message).filter(Message.room_id == room_id).order_by(Message.timestamp.desc()).limit(limit).offset(offset).all()  # type: ignore
-        return messages
-
-    def get_all(self) -> list[Message]:  # type: ignore
-        return self.db.query(Message).all()  # type: ignore
-
-    def delete(self, message_id: int) -> Message | None:  # type: ignore
-        message = self.db.query(Message).filter(Message.message_id == message_id).first()  # type: ignore
+    async def update_message(self, message_id: int, new_content: str) -> Message | None:
+        result = await self.db.execute(select(Message).where(Message.message_id == message_id))
+        message = result.scalars().first()
         if message:
-            self.db.delete(message)  # type: ignore
-            self.db.commit()  # type: ignore
+            setattr(message, "content", new_content)
+            await self.db.commit()
+            await self.db.refresh(message)
         return message
-from datetime import datetime
+
+    async def create_reply(self, room_id: int, sender_id: int, parent_message_id: int, content: str) -> Message:
+        new_message = Message(room_id=room_id, sender_id=sender_id, content=content, parent_message_id=parent_message_id)
+        self.db.add(new_message)
+        await self.db.commit()
+        await self.db.refresh(new_message)
+        return new_message
+
+    async def get_by_room(self, room_id: int, limit: int = 50, offset: int = 0) -> list[Message]:
+        result = await self.db.execute(
+            select(Message).where(Message.room_id == room_id).order_by(Message.timestamp.desc()).limit(limit).offset(offset)
+        )
+        return list(result.scalars().all())
+
+    async def get_all(self) -> list[Message]:
+        result = await self.db.execute(select(Message))
+        return list(result.scalars().all())
+
+    async def delete(self, message_id: int) -> Message | None:
+        result = await self.db.execute(select(Message).where(Message.message_id == message_id))
+        message = result.scalars().first()
+        if message:
+            await self.db.delete(message)
+            await self.db.commit()
+        return message
+
 
 class CallRepository:
-    def __init__(self, db: 'Session'):
-        self.db: 'Session' = db
+    def __init__(self, db: AsyncSession):
+        self.db: AsyncSession = db
 
-    def create(self, room_id: int, initiator_id: int, call_type: str) -> Call:  # type: ignore
+    async def create(self, room_id: int, initiator_id: int, call_type: str) -> Call:
         new_call = Call(room_id=room_id, initiator_id=initiator_id, call_type=call_type)
-        self.db.add(new_call)  # type: ignore
-        self.db.commit()  # type: ignore
-        self.db.refresh(new_call)  # type: ignore
+        self.db.add(new_call)
+        await self.db.commit()
+        await self.db.refresh(new_call)
         return new_call
 
-    def end_call(self, call_id: int) -> Call | None:  # type: ignore
-        call = self.db.query(Call).filter(Call.call_id == call_id).first()  # type: ignore
+    async def end_call(self, call_id: int) -> Call | None:
+        result = await self.db.execute(select(Call).where(Call.call_id == call_id))
+        call = result.scalars().first()
         if call:
-            call.end_time = datetime.utcnow()  # type: ignore
-            self.db.commit()  # type: ignore
-            self.db.refresh(call)  # type: ignore
+            from datetime import datetime, timezone
+            setattr(call, "ended_at", datetime.now(timezone.utc))
+            await self.db.commit()
+            await self.db.refresh(call)
         return call
 
-    def get_active_call_by_room(self, room_id: int) -> Call | None:  # type: ignore
-        return self.db.query(Call).filter(Call.room_id == room_id, Call.ended_at == None).first()  # type: ignore
+    async def get_active_call_by_room(self, room_id: int) -> Call | None:
+        result = await self.db.execute(select(Call).where(Call.room_id == room_id, Call.ended_at == None))
+        return result.scalars().first()
+
+    async def get_latest_call_by_room(self, room_id: int) -> Call | None:
+        result = await self.db.execute(
+            select(Call).where(Call.room_id == room_id).order_by(Call.started_at.desc())
+        )
+        return result.scalars().first()
 class CallParticipantRepository:
-    def __init__(self, db: Session):
-        self.db = db
+    def __init__(self, db: AsyncSession):
+        self.db: AsyncSession = db
 
-    def leader_mute(self, call_id: int, user_id: int, acting_user_id: int) -> CallParticipant | None:  # type: ignore
-        # Only leader can mute (assume leader check is done in service)
-        participant = self.db.query(CallParticipant).filter(CallParticipant.call_id == call_id, CallParticipant.user_id == user_id).first()  # type: ignore
+    async def leader_mute(self, call_id: int, user_id: int, acting_user_id: int) -> CallParticipant | None:
+        result = await self.db.execute(select(CallParticipant).where(CallParticipant.call_id == call_id, CallParticipant.user_id == user_id))
+        participant = result.scalars().first()
         if participant:
-            participant.is_muted = True  # type: ignore[attr-defined]
-            self.db.commit()  # type: ignore
-            self.db.refresh(participant)  # type: ignore
-        return participant  # type: ignore
-
-    def user_unmute(self, call_id: int, user_id: int) -> CallParticipant | None:  # type: ignore
-        participant = self.db.query(CallParticipant).filter(CallParticipant.call_id == call_id, CallParticipant.user_id == user_id).first()  # type: ignore
-        if participant:
-            participant.is_muted = False  # type: ignore[attr-defined]
-            self.db.commit()  # type: ignore
-            self.db.refresh(participant)  # type: ignore
-        return participant  # type: ignore
-
-    def add_participant(self, call_id: int, user_id: int) -> CallParticipant:  # type: ignore
-        new_participant = CallParticipant(call_id=call_id, user_id=user_id)
-        self.db.add(new_participant)  # type: ignore
-        self.db.commit()  # type: ignore
-        self.db.refresh(new_participant)  # type: ignore
-        return new_participant
-
-    def remove_participant(self, call_id: int, user_id: int) -> CallParticipant | None:  # type: ignore
-        participant = self.db.query(CallParticipant).filter(CallParticipant.call_id == call_id, CallParticipant.user_id == user_id).first()  # type: ignore
-        if participant:
-            self.db.delete(participant)  # type: ignore
-            self.db.commit()  # type: ignore
+            setattr(participant, "is_muted", True)
+            await self.db.commit()
+            await self.db.refresh(participant)
         return participant
 
-    def get_participants(self, call_id: int) -> list[CallParticipant]:  # type: ignore
-        participants = self.db.query(CallParticipant).filter(CallParticipant.call_id == call_id).all()  # type: ignore
-        return participants
+    async def user_unmute(self, call_id: int, user_id: int) -> CallParticipant | None:
+        result = await self.db.execute(select(CallParticipant).where(CallParticipant.call_id == call_id, CallParticipant.user_id == user_id))
+        participant = result.scalars().first()
+        if participant:
+            setattr(participant, "is_muted", False)
+            await self.db.commit()
+            await self.db.refresh(participant)
+        return participant
 
-    def update_mute_status(self, call_id: int, user_id: int, is_muted: bool) -> CallParticipant | None:  # type: ignore
-        participant = self.db.query(CallParticipant).filter(CallParticipant.call_id == call_id, CallParticipant.user_id == user_id).first()  # type: ignore
+    async def add_participant(self, call_id: int, user_id: int) -> CallParticipant:
+        new_participant = CallParticipant(call_id=call_id, user_id=user_id)
+        self.db.add(new_participant)
+        await self.db.commit()
+        await self.db.refresh(new_participant)
+        return new_participant
+
+    async def remove_participant(self, call_id: int, user_id: int) -> CallParticipant | None:
+        result = await self.db.execute(select(CallParticipant).where(CallParticipant.call_id == call_id, CallParticipant.user_id == user_id))
+        participant = result.scalars().first()
+        if participant:
+            await self.db.delete(participant)
+            await self.db.commit()
+        return participant
+
+    async def get_participants(self, call_id: int) -> list[CallParticipant]:
+        result = await self.db.execute(select(CallParticipant).where(CallParticipant.call_id == call_id))
+        return list(result.scalars().all())
+
+    async def update_mute_status(self, call_id: int, user_id: int, is_muted: bool) -> CallParticipant | None:
+        result = await self.db.execute(select(CallParticipant).where(CallParticipant.call_id == call_id, CallParticipant.user_id == user_id))
+        participant = result.scalars().first()
         if participant is not None:
-            participant.is_muted = is_muted  # type: ignore[attr-defined]
+            setattr(participant, "is_muted", is_muted)
             try:
-                self.db.commit()  # type: ignore
-                self.db.refresh(participant)  # type: ignore
+                await self.db.commit()
+                await self.db.refresh(participant)
             except Exception:
-                self.db.rollback()  # type: ignore
+                await self.db.rollback()
                 return None
         return participant

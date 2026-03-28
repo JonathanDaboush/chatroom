@@ -61,11 +61,13 @@ class Message(Base):
     room_id = Column(Integer, ForeignKey("rooms.room_id"))
     sender_id = Column(Integer, ForeignKey("users.user_id"))
     content = Column(Text)
+    parent_message_id = Column(Integer, ForeignKey("messages.message_id"), nullable=True, default=None)
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     is_read = Column(Boolean, default=False)
 
     room = relationship("Room", back_populates="messages")
     sender = relationship("User", back_populates="messages")
+    parent = relationship("Message", remote_side=[message_id], backref="replies", uselist=False)
 
 
 class Call(Base):
