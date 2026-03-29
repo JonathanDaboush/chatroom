@@ -1,0 +1,40 @@
+# Docker Compose configuration for chatroom backend and PostgreSQL
+version: '3.8'
+
+services:
+  db:
+    image: postgres:18
+    container_name: chatroom-db
+    restart: always
+    environment:
+      POSTGRES_DB: chatroom
+      POSTGRES_USER: server
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: chatroom-redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    container_name: chatroom-backend
+    restart: always
+    environment:
+      DATABASE_URL: postgresql+asyncpg://server:password@db:5432/chatroom
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "8000:8000"
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+volumes:
+  pgdata:

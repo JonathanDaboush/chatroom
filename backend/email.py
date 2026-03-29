@@ -12,8 +12,14 @@ def send_html_email(
     template_path: Optional[str] = None
 ):
     """
-    Send an HTML email using a template type (new_user, forgot_password, delete_account) or a custom template_path.
-    context: Optional[dict[str, str]] - values to fill in the template using str.format(**context)
+    Purpose: Sends an HTML email using a template (new_user, forgot_password, delete_account) or a custom template path.
+    Inputs:
+        to_email (str): Recipient email address
+        subject (str): Email subject
+        context (dict, optional): Values to fill in the template using str.format(**context)
+        template_type (str): Type of template to use (default: new_user)
+        template_path (str, optional): Custom path to HTML template
+    Outputs: None (sends email via SMTP)
     """
     if template_path is None:
         base_dir = os.path.dirname(os.path.abspath(__file__))

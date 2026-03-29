@@ -1,3 +1,8 @@
+redis
+aioredis
+python-jose
+slowapi
+structlog
 fastapi
 uvicorn
 sqlalchemy[asyncio]
@@ -6,3 +11,5 @@ sqlalchemy
 psycopg2
 asyncio
 alembic
+pytest
+httpx

@@ -1,5 +1,6 @@
+from sqlalchemy import and_
 
-from backend.classes import User, Room, RoomMember, Message, Call, CallParticipant
+from .classes import User, Room, RoomMember, Message, Call, CallParticipant
 from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -280,7 +281,7 @@ class CallRepository:
         return call
 
     async def get_active_call_by_room(self, room_id: int) -> Call | None:
-        result = await self.db.execute(select(Call).where(Call.room_id == room_id, Call.ended_at == None))
+        result = await self.db.execute(select(Call).where(and_(Call.room_id == room_id, Call.ended_at.is_(None))))
         return result.scalars().first()
 
     async def get_latest_call_by_room(self, room_id: int) -> Call | None:

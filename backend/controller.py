@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Dependency injection: instantiate repositories/services with async DB session
 async def get_services() -> tuple[UserService, RoomService, MessageService, CallService]:
 	async with AsyncSessionLocal() as db:  # type: ignore
-		db: AsyncSession
 		user_repo = UserRepository(db)
 		room_repo = RoomRepository(db)
 		room_member_repo = RoomMemberRepository(db)
