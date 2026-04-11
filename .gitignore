@@ -1,0 +1,386 @@
+# ================================
+# SENSITIVE INFORMATION
+# ================================
+
+# Environment variables (NEVER commit these!)
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+*.env
+
+# Secrets and configuration
+secrets/
+*.secret
+*.key
+*.pem
+config/secrets.json
+
+# ================================
+# PYTHON / BACKEND
+# ================================
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+.ENV
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# ================================
+# NODE / FRONTEND
+# ================================
+
+# Dependencies
+node_modules/
+jspm_packages/
+bower_components/
+
+# Production builds
+dist/
+dist-ssr/
+build/
+out/
+
+# Cache
+.npm
+.eslintcache
+.cache
+.parcel-cache
+.next/
+.nuxt/
+.vuepress/dist
+.serverless/
+
+# Testing
+coverage/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Local env files
+.env*.local
+
+# Vercel
+.vercel
+
+# Vite
+.vite
+
+# ================================
+# DATABASE
+# ================================
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# PostgreSQL
+*.dump
+*.sql
+
+# Database backups
+backups/
+*.bak
+
+# ================================
+# DOCKER
+# ================================
+
+# Docker files (unless needed for deployment)
+# docker-compose.override.yml
+*.log
+.dockerignore
+
+# ================================
+# OPERATING SYSTEM
+# ================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ================================
+# IDEs & EDITORS
+# ================================
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iws
+*.iml
+*.ipr
+.idea_modules/
+out/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+Sessionx.vim
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+
+# ================================
+# TEMPORARY FILES
+# ================================
+
+# General temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# ================================
+# UPLOADS & USER CONTENT
+# ================================
+
+# User uploaded files (if applicable)
+uploads/
+media/
+static/uploads/
+public/uploads/
+
+# ================================
+# LOGS & MONITORING
+# ================================
+
+# Application logs
+logs/
+*.log
+log/
+
+# Error tracking
+.sentry-native/
+
+# ================================
+# TESTING & CI/CD
+# ================================
+
+# Test coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# CI artifacts
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# ================================
+# PACKAGE MANAGERS
+# ================================
+
+# npm
+package-lock.json  # Optional: remove this line if you want to commit it
+yarn.lock          # Optional: remove this line if you want to commit it
+pnpm-lock.yaml     # Optional: remove this line if you want to commit it
+
+# ================================
+# ALEMBIC (Database migrations)
+# ================================
+
+# Don't ignore migration files, but ignore generated ones if needed
+# alembic/versions/*.py  # Uncomment to ignore all migrations
+
+# ================================
+# CUSTOM APPLICATION FILES
+# ================================
+
+# Email queue or temporary email storage
+email_queue/
+*.eml
+
+# Session files
+sessions/
+*.session
+
+# Cache directories
+.cache/
+cache/
+
+# ================================
+# SECURITY
+# ================================
+
+# Private keys (NEVER commit!)
+*.key
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+
+# OAuth tokens
+.credentials/
+credentials.json
+token.json
+
+# SSL certificates
+*.crt
+*.cer
+*.der
+
+# SSH keys
+id_rsa
+id_rsa.pub
+id_dsa
+id_dsa.pub
+id_ecdsa
+id_ecdsa.pub
+id_ed25519
+id_ed25519.pub
+
+# ================================
+# MISC
+# ================================
+
+# Backup files
+*.backup
+*.old
+
+# Archive files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Large files (consider using Git LFS)
+*.iso
+*.dmg
+
+# Scratch/test files
+scratch/
+test_data/
+.scratch/
